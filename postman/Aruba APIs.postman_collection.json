@@ -1,0 +1,1015 @@
+{
+	"info": {
+		"name": "Aruba APIs",
+		"_postman_id": "0ece3f37-e715-1231-4d10-8f942820a956",
+		"description": "Colección con ejemplos de uso de APIs Aruba",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "ClearPass",
+			"description": null,
+			"item": [
+				{
+					"name": "Auth (grant_type: client_credentials)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "724120d1-a943-4a86-b736-2b7f54a0fdd4",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    pm.environment.set(\"cp_access_token\", data.access_token);",
+									"    if (data.refresh_token !== undefined) {",
+									"        pm.environment.set(\"cp_refresh_token\", data.refresh_token);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"grant_type\": \"client_credentials\",\n\t\"client_id\": \"{{cp_client_id}}\",\n\t\"client_secret\": \"{{cp_client_secret}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/oauth",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"oauth"
+							]
+						},
+						"description": "Autenticación contra ClearPass usando credenciales de aplicación"
+					},
+					"response": []
+				},
+				{
+					"name": "Auth (grant_type: password)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "53930c99-c73c-4195-bfba-2ee2590554cb",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    pm.environment.set(\"cp_access_token\", data.access_token);",
+									"    if (data.refresh_token !== undefined) {",
+									"        pm.environment.set(\"cp_refresh_token\", data.refresh_token);",
+									"    }",
+									"}",
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"grant_type\": \"password\",\n\t\"client_id\": \"{{cp_client_id}}\",\n\t\"client_secret\": \"{{cp_client_secret}}\",\n\t\"username\": \"{{cp_username}}\",\n\t\"password\": \"{{cp_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/oauth",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"oauth"
+							]
+						},
+						"description": "Autenticación contra ClearPass usando credenciales de usuario"
+					},
+					"response": []
+				},
+				{
+					"name": "Auth (grant_type: refresh-token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "724120d1-a943-4a86-b736-2b7f54a0fdd4",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    pm.environment.set(\"cp_access_token\", data.access_token);",
+									"    if (data.refresh_token !== undefined) {",
+									"        pm.environment.set(\"cp_refresh_token\", data.refresh_token);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"grant_type\": \"refresh_token\",\n\t\"client_id\": \"{{cp_client_id}}\",\n\t\"client_secret\": \"{{cp_client_secret}}\",\n\t\"refresh_token\": \"{{cp_refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/oauth",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"oauth"
+							]
+						},
+						"description": "Autenticación contra ClearPass usando Refresh Token"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Guests",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "616383b3-950c-4602-9660-5e5421c9a3fc",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{cp_access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/guest",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"guest"
+							]
+						},
+						"description": "Obtener información de invitados"
+					},
+					"response": []
+				},
+				{
+					"name": "Edit Guests",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "616383b3-950c-4602-9660-5e5421c9a3fc",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "b779474f-6283-4ab5-ace4-13b96d142849",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{cp_access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expire_time\": {{cp_guest_et_by_email}}\n}"
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/guest/{{cp_guest_id_by_email}}",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"guest",
+								"{{cp_guest_id_by_email}}"
+							]
+						},
+						"description": "Añadir una cuenta de invitado"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Guests by Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5aab10e8-0a93-4bd6-b744-5d9ddb7f2886",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    if (data._embedded.items.length > 0) {",
+									"        pm.environment.set(\"cp_guest_id_by_email\", data._embedded.items[0].id)",
+									"        pm.environment.set(\"cp_guest_et_by_email\", data._embedded.items[0].expire_time + 100)",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{cp_access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/guest?filter={\"email\":\"rafael.rivero@hpe.com\"}",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"guest"
+							],
+							"query": [
+								{
+									"key": "filter",
+									"value": "{\"email\":\"rafael.rivero@hpe.com\"}",
+									"equals": true
+								}
+							]
+						},
+						"description": "Obtener información de invitados"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Session by MAC",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "db1200e4-1c6d-4933-9150-8adfb99a535d",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    active = data._embedded.items.filter(function (session) {",
+									"        return (session.state == \"active\")",
+									"    })",
+									"    if (active.length > 0) {",
+									"        pm.environment.set(\"Controller\", active[0].nasipaddress)",
+									"        pm.environment.set(\"sw_mac\", active[0].mac_address)",
+									"        pm.environment.set(\"md_nasportid\", active[0].nasportid)",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{cp_access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "https://{{ClearPass}}/api/session?filter={\"mac_address\":\"00626e704f1d\"}",
+							"protocol": "https",
+							"host": [
+								"{{ClearPass}}"
+							],
+							"path": [
+								"api",
+								"session"
+							],
+							"query": [
+								{
+									"key": "filter",
+									"value": "{\"mac_address\":\"00626e704f1d\"}",
+									"equals": true
+								}
+							]
+						},
+						"description": "Obtener información de sesiones"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "AOS-Switch",
+			"description": null,
+			"item": [
+				{
+					"name": "Login - v3",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ae037a3e-ee5c-4159-a7e9-caf080a3602e",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(201)) {",
+									"    data = pm.response.json()",
+									"    pm.environment.set(\"sw_cookie\", data.cookie);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/login-sessions",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"login-sessions"
+							]
+						},
+						"description": "Autenticación contra el switch"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout - v3",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "cb3078fe-88d0-4705-bef4-ac08a64098c3",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							}
+						],
+						"body": {},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/login-sessions",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"login-sessions"
+							]
+						},
+						"description": "De-autenticación contra el switch"
+					},
+					"response": []
+				},
+				{
+					"name": "Get MAC Table",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ce8c31e8-847d-4093-b82d-8a104cc83806",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/mac-table",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"mac-table"
+							]
+						},
+						"description": "Obtener la lista de MACs"
+					},
+					"response": []
+				},
+				{
+					"name": "Get MAC Table by MAC",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "22fb11aa-da35-4657-981a-10aa88401de8",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    pm.environment.set(\"sw_port\", data.port_id)",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/mac-table/{{sw_mac}}",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"mac-table",
+								"{{sw_mac}}"
+							]
+						},
+						"description": "Obtener la lista de MACs"
+					},
+					"response": []
+				},
+				{
+					"name": "Get VLANs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ce8c31e8-847d-4093-b82d-8a104cc83806",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/vlans",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"vlans"
+							]
+						},
+						"description": "Obtener la lista de VLANs"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Ports",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ce8c31e8-847d-4093-b82d-8a104cc83806",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/ports",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"ports"
+							]
+						},
+						"description": "Obtener la lista de Interfaces"
+					},
+					"response": []
+				},
+				{
+					"name": "Get VLAN - Port Assignment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ce8c31e8-847d-4093-b82d-8a104cc83806",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/vlans-ports",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"vlans-ports"
+							]
+						},
+						"description": "Obtener la lista de asociaciones VLAN - Puerto"
+					},
+					"response": []
+				},
+				{
+					"name": "Disable Port",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ce8c31e8-847d-4093-b82d-8a104cc83806",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"id\": \"{{sw_port}}\",\n\t\"is_port_enabled\": false\n}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/v3/ports/{{sw_port}}",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"v3",
+								"ports",
+								"{{sw_port}}"
+							]
+						},
+						"description": "Deshabilitar un puerto"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "AOS-Controller",
+			"description": null,
+			"item": [
+				{
+					"name": "Login - v1",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5faf5845-2102-464b-8fa9-5b05be530f6c",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    pm.environment.set(\"md_UIDARUBA\", data._global_result.UIDARUBA);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "{{md_username}}",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{md_password}}",
+									"description": "",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "https://{{Controller}}:4343/v1/api/login",
+							"protocol": "https",
+							"host": [
+								"{{Controller}}"
+							],
+							"port": "4343",
+							"path": [
+								"v1",
+								"api",
+								"login"
+							]
+						},
+						"description": "Autenticación contra MM - controladora"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout- v1",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "7407683d-aa75-4813-a69f-1f75126e01e9",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {},
+						"url": {
+							"raw": "https://{{Controller}}:4343/v1/api/logout?UIDARUBA={{md__UIDARUBA}}",
+							"protocol": "https",
+							"host": [
+								"{{Controller}}"
+							],
+							"port": "4343",
+							"path": [
+								"v1",
+								"api",
+								"logout"
+							],
+							"query": [
+								{
+									"key": "UIDARUBA",
+									"value": "{{md__UIDARUBA}}",
+									"equals": true
+								}
+							]
+						},
+						"description": "Des-autenticación contra MM - controladora"
+					},
+					"response": []
+				},
+				{
+					"name": "Show datapath tunnel tunnel-id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "cf48df9c-f5bf-450f-add2-554159e8ccc7",
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.to.have.status(200)) {",
+									"    data = pm.response.json()",
+									"    port = pm.environment.get(\"md_nasportid\") + \" \"",
+									"    plen = port.length",
+									"    lines = data._data.filter(function (line) {",
+									"        return (line.substring(0, plen) == port)",
+									"    })",
+									"    if (lines.length > 0) {",
+									"        // El tercer elemento de la linea, separada por",
+									"        // espacios en blanco, es el switch destino",
+									"        parts = lines[0].split(\" \").filter(function (item) {",
+									"            return item.trim().length > 0",
+									"        });",
+									"        pm.environment.set(\"Switch\", parts[2])",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "SESSION={{md_UIDARUBA}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "{{md_username}}",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{md_password}}",
+									"description": "",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "https://{{Controller}}:4343/v1/configuration/showcommand?json=1&command=show+datapath+tunnel+tunnel-id+{{md_nasportid}}&json=1&UIDARUBA={{md_UIDARUBA}}",
+							"protocol": "https",
+							"host": [
+								"{{Controller}}"
+							],
+							"port": "4343",
+							"path": [
+								"v1",
+								"configuration",
+								"showcommand"
+							],
+							"query": [
+								{
+									"key": "json",
+									"value": "1",
+									"equals": true
+								},
+								{
+									"key": "command",
+									"value": "show+datapath+tunnel+tunnel-id+{{md_nasportid}}",
+									"equals": true
+								},
+								{
+									"key": "json",
+									"value": "1",
+									"equals": true
+								},
+								{
+									"key": "UIDARUBA",
+									"value": "{{md_UIDARUBA}}",
+									"equals": true
+								}
+							]
+						},
+						"description": "Buscar un usuario por MAC"
+					},
+					"response": []
+				},
+				{
+					"name": "Get AP provision",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "c5449ca5-ec04-442d-8a78-af8110efb24c",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "SESSION={{md_UIDARUBA}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "{{md_username}}",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{md_password}}",
+									"description": "",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "https://{{Controller}}:4343/v1/configuration/object/ap_prov?config_path=/md&UIDARUBA={{md_UIDARUBA}}",
+							"protocol": "https",
+							"host": [
+								"{{Controller}}"
+							],
+							"port": "4343",
+							"path": [
+								"v1",
+								"configuration",
+								"object",
+								"ap_prov"
+							],
+							"query": [
+								{
+									"key": "config_path",
+									"value": "/md",
+									"equals": true
+								},
+								{
+									"key": "UIDARUBA",
+									"value": "{{md_UIDARUBA}}",
+									"equals": true
+								}
+							]
+						},
+						"description": "Obtener la tabla de AP provision"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
