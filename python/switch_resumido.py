@@ -6,7 +6,7 @@ import sys
 from aruba import Config, switch
 import json
 
-# Ejemplo de autenticación básica, con módulo Aruba.
+# Ejemplo de conexión básica, con módulo Aruba.
 # Realiza una conexión REST a un switch y lee la lista de VLANs
 
 # Desactivo el log de certificado autofirmado. Ya sé que mis switches
@@ -14,7 +14,7 @@ import json
 import logging
 logging.captureWarnings(True)
 
-# Inicio una sesión con el switch que está almacenado en el fichero de configuración.
+# Inicio una sesión con el switch que está en el fichero de configuración.
 # Para cambiar las credenciales: python -m aruba.switches
 
 with switch.session(Config(), verify=False) as session:
@@ -26,3 +26,4 @@ with switch.session(Config(), verify=False) as session:
         print("Error leyendo VLANs: ", response.status_code, response.text)
         sys.exit(-1)
     print(json.dumps(response.json(), indent=4))
+

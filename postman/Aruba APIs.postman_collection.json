@@ -398,7 +398,7 @@
 			"description": null,
 			"item": [
 				{
-					"name": "Login - v3",
+					"name": "Login",
 					"event": [
 						{
 							"listen": "test",
@@ -427,14 +427,14 @@
 							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/login-sessions",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/login-sessions",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"login-sessions"
 							]
 						},
@@ -443,7 +443,7 @@
 					"response": []
 				},
 				{
-					"name": "Logout - v3",
+					"name": "Logout",
 					"event": [
 						{
 							"listen": "test",
@@ -469,14 +469,14 @@
 						],
 						"body": {},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/login-sessions",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/login-sessions",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"login-sessions"
 							]
 						},
@@ -511,14 +511,14 @@
 							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/mac-table",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/mac-table",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"mac-table"
 							]
 						},
@@ -556,14 +556,14 @@
 							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/mac-table/{{sw_mac}}",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/mac-table/{{sw_mac}}",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"mac-table",
 								"{{sw_mac}}"
 							]
@@ -599,14 +599,14 @@
 							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/vlans",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/vlans",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"vlans"
 							]
 						},
@@ -641,14 +641,14 @@
 							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/ports",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/ports",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"ports"
 							]
 						},
@@ -683,14 +683,14 @@
 							"raw": "{\n\t\"userName\": \"{{sw_username}}\",\n\t\"password\": \"{{sw_password}}\"\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/vlans-ports",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/vlans-ports",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"vlans-ports"
 							]
 						},
@@ -729,19 +729,65 @@
 							"raw": "{\n\t\"id\": \"{{sw_port}}\",\n\t\"is_port_enabled\": false\n}"
 						},
 						"url": {
-							"raw": "https://{{Switch}}/rest/v3/ports/{{sw_port}}",
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/ports/{{sw_port}}",
 							"protocol": "https",
 							"host": [
 								"{{Switch}}"
 							],
 							"path": [
 								"rest",
-								"v3",
+								"{{SwitchVersion}}",
 								"ports",
 								"{{sw_port}}"
 							]
 						},
 						"description": "Deshabilitar un puerto"
+					},
+					"response": []
+				},
+				{
+					"name": "Send CLI command",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ce8c31e8-847d-4093-b82d-8a104cc83806",
+								"type": "text/javascript",
+								"exec": [
+									""
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "{{sw_cookie}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"cmd\":\"show ip\"}"
+						},
+						"url": {
+							"raw": "https://{{Switch}}/rest/{{SwitchVersion}}/cli",
+							"protocol": "https",
+							"host": [
+								"{{Switch}}"
+							],
+							"path": [
+								"rest",
+								"{{SwitchVersion}}",
+								"cli"
+							]
+						},
+						"description": "interfaz AnyCLI"
 					},
 					"response": []
 				}

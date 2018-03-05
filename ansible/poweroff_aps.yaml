@@ -1,0 +1,84 @@
+---
+# Este playbook localiza todos los puertos del switch
+# que tienen baja prioridad PoE, y les tira el PoE.
+#
+# Simula un escenario en que cierras la sede por el fin de semana,
+# por ejemplo (típico banco), y quieres apagar teléfonos
+# y APs para reducir consumo, dejando las cámaras de vigilancia
+# (alta prioridad PoE) activas.
+#
+# Ojito! poner en high priority todos los puertos PoE
+# que quieras conservar, porque te lo va a tirar todo!
+
+- hosts: switches
+
+  # force_handlers == True para liberar la sesion en el switch
+  force_handlers: True
+  # gather_facts == False para no intentar conectar por ssh al switch
+  gather_facts: False
+  connection: local
+
+  vars:
+
+    api_version: v4
+
+  tasks:
+
+    - name: Login en el switch
+      # Si en vez de ejecutar los scripts en local,
+      # quieres usar una máquina de salto, puedes hacerlo
+      # con delegate_to:
+      # delegate_to: localhost
+      uri:
+        validate_certs: no
+        url: https://{{inventory_hostname}}/rest/{{api_version}}/login-sessions
+        method: POST
+        status_code: 201
+        body_format: json
+        body:
+          userName: "{{username}}"
+          password: "{{password}}"
+      register: session
+      # Forzar un cambio para que se dispare el handler
+      changed_when: true
+      notify: Logout del switch
+
+    - debug:
+        var: session
+
+    - name: Obtener config PoE de los puertos
+      uri:
+        validate_certs: no
+        url: https://{{inventory_hostname}}/rest/{{api_version}}/poe/ports
+        method: GET
+        status_code: 200
+        headers:
+          Cookie: "{{session.json.cookie}}" 
+      register: poe_ports
+
+    - name: Desactivar PoE en los puertos PPP_LOW
+      when: "item.poe_priority == \"PPP_LOW\""
+      uri:
+        validate_certs: no
+        url: https://{{inventory_hostname}}/rest/{{api_version}}/ports/{{ item.port_id }}/poe
+        method: PUT
+        status_code: 200
+        headers:
+          Cookie: "{{session.json.cookie}}" 
+        body_format: json
+        body:
+          port_id: "{{ item.port_id }}"
+          is_poe_enabled: false
+      with_items: "{{ poe_ports.json.port_poe }}"
+
+  handlers:
+
+    - name: Logout del switch
+      uri:
+        validate_certs: no
+        url: https://{{inventory_hostname}}/rest/{{api_version}}/login-sessions
+        method: DELETE
+        status_code: 204
+        headers:
+          Cookie: "{{session.json.cookie}}" 
+

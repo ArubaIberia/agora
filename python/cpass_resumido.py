@@ -7,17 +7,15 @@ import json
 
 from aruba import Config, clearpass
 
-# Ejemplo de autenticación básica, con módulo Aruba.
-# Realiza una conexión REST a un switch y lee la lista de VLANs
+# Ejemplo de conexión básica, con módulo Aruba.
+# Realiza una conexión REST a un Clearpass
 
-# Desactivo el log de certificado autofirmado. Ya sé que mis switches
-# tienen certificado autofirmado.
-
+# Desactivo el log de certificado autofirmado.
 import logging
 logging.captureWarnings(True)
 
-# Inicio una sesión con el switch que está almacenado en el fichero de configuración.
-# Para cambiar las credenciales: python -m aruba.switches
+# Inicio una sesión con el clearpasss que está en el fichero de configuración.
+# Para cambiar las credenciales: python -m aruba.clearpass
 
 with clearpass.session(Config(), verify=False) as session:
 
@@ -28,3 +26,4 @@ with clearpass.session(Config(), verify=False) as session:
         print("Error leyendo Guests: ", response.status_code, response.text)
         sys.exit(-1)
     print(json.dumps(response.json(), indent=4))
+

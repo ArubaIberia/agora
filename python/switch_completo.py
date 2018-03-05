@@ -45,3 +45,4 @@ print(json.dumps(response.json(), indent=4))
 response = requests.delete(url_api + "/login-sessions", verify=False, headers=headers)
 if response.status_code != 204:
     print("Error de cierre de sesion: ", response.text)
+

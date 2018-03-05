@@ -1,0 +1,26 @@
+---
+# Este playbook localiza todos los puertos del switch
+# que tienen baja prioridad PoE, y les tira el PoE.
+#
+# Simula un escenario en que cierras la sede por el fin de semana,
+# por ejemplo (típico banco), y quieres apagar teléfonos
+# y APs para reducir consumo, dejando las cámaras de vigilancia
+# (alta prioridad PoE) activas.
+#
+# Ojito! poner en high priority todos los puertos PoE
+# que quieras conservar, porque te lo va a tirar todo!
+#
+# ejecutar con --extra-vars "poe=True" para volver a activar
+
+- hosts: switches
+
+  # force_handlers == True para liberar la sesion en el switch
+  force_handlers: True
+  # gather_facts == False para no intentar conectar por ssh al switch
+  gather_facts: False
+  # Ejecutar todos los scripts en local
+  connection: local
+
+  roles:
+    - { role: poe_managed_switch, is_poe_enabled: "{{poe or False}}" }
+

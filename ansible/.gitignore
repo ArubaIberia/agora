@@ -1,0 +1,6 @@
+# subproductos de ansible
+ansible
+*.retry
+
+# ficheros de credenciales en group_vars y host_vars
+**/credenciales.yaml

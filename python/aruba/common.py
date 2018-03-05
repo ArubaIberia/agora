@@ -66,7 +66,7 @@ class Session(object):
         self._headers = headers
 
     def params(self, params=None):
-        """Añade a los argumentos dados, los necesarios para hacer la autenticacion"""
+        """Añade a los argumentos dados, los necesarios para la autenticacion"""
         if not self._params:
             return params
         if not params:
@@ -75,7 +75,7 @@ class Session(object):
         return params
 
     def headers(self, headers=None):
-        """Añade a las cabeceras dadas, las necesarias para hacer la autenticacion"""
+        """Añade a las cabeceras dadas, las necesarias para la autenticacion"""
         if not self._headers:
             return headers
         if not headers:

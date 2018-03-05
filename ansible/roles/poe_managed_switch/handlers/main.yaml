@@ -1,0 +1,11 @@
+---
+
+- name: Logout del switch
+  uri:
+    validate_certs: no
+    url: https://{{inventory_hostname}}/rest/{{api_version}}/login-sessions
+    method: DELETE
+    status_code: 204
+    headers:
+      Cookie: "{{session.json.cookie}}" 
+
