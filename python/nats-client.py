@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # nats-client.py: Subscribe to a nats topic and wait for CoA requests
  
@@ -29,7 +30,7 @@ Sample = {
 }
 
 def switchRole(config, nas_ip, endpoint_mac, threat):
-  """Cambia el atributo Stateful-Role del endpoint dado, y le envía un CoA al nas_ip"""
+  """Cambia los atributos de threat severity y status del endpoint, y le envia un CoA al nas_ip"""
   # Inicio una sesión con el clearpass que está en el fichero de configuración.
   # Para cambiar las credenciales: python -m aruba.clearpass
   with clearpass.session(config, verify=False) as session:
