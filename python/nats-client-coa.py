@@ -2,17 +2,21 @@
 # -*- coding: utf-8 -*-
 
 # nats-client.py: Subscribe to a nats topic and wait for CoA requests
- 
+# Requisitos:
+#
+# pip3 install aiohttp
+# pip3 install cchardet
+# pip3 install aiodns
+# pip3 install asyncio-nats-client
+
 import sys
-import requests
 import json
 import argparse
 import asyncio
 import traceback
+import aiohttp
 
-from contextlib import contextmanager
 from nats.aio.client import Client as NATS
-from nats.aio.errors import ErrConnectionClosed, ErrTimeout, ErrNoServers
 from aruba import Config, clearpass
 
 # Desactivo el log de certificado autofirmado.
@@ -29,11 +33,25 @@ Sample = {
   "threat": True,
 }
 
-def switchRole(config, nas_ip, endpoint_mac, threat):
+async def onReceive(requests, data):
   """Cambia los atributos de threat severity y status del endpoint, y le envia un CoA al nas_ip"""
+
+  # Fake config object. Solo soportamos client_credentials
+  cfg = {
+    "clearpass": {
+      "grant_type": "client_credentials",
+      "api_host": data["host"],
+      "client_id": data["user"],
+      "client_secret": data["pass"],
+    },
+  }
+  nas_ip = data["nas_ip"]
+  endpoint_mac = data["endpoint_mac"]
+  threat = data["threat"]
+
   # Inicio una sesión con el clearpass que está en el fichero de configuración.
   # Para cambiar las credenciales: python -m aruba.clearpass
-  with clearpass.session(config, verify=False) as session:
+  with clearpass.session(cfg, verify=False) as session:
 
       # Modifico el nivel de amenaza del endpoint
       update = {
@@ -49,9 +67,9 @@ def switchRole(config, nas_ip, endpoint_mac, threat):
             "Threat Status": "Resolved",
           },
         }
-      response = requests.patch(session.api_url + "/endpoint/mac-address/{}".format(endpoint_mac), verify=False, headers=session.headers(), json=update)
-      if response.status_code != 200:
-          return "Error actualizando endpoint: ({}) {}".format(response.status_code, response.text)
+      async with requests.patch(session.api_url + "/endpoint/mac-address/{}".format(endpoint_mac), headers=session.headers(), json=update) as response:
+        if response.status != 200:
+            return "Error actualizando endpoint: ({}) {}".format(response.status, await response.text())
 
       # Encuentro la última sesión en el switch
       query = {
@@ -62,16 +80,16 @@ def switchRole(config, nas_ip, endpoint_mac, threat):
         "sort": "-acctstarttime",
         "limit": 1,
       }
-      response = requests.get(session.api_url + "/session", verify=False, headers=session.headers(), params=query)
-      if response.status_code != 200:
-          return "Error localizando sesion: ({}) {}".format(response.status_code, response.text)
-      session_id = response.json()["_embedded"]["items"][0]["id"]
+      async with requests.get(session.api_url + "/session", headers=session.headers(), params=query) as response:
+        if response.status != 200:
+            return "Error localizando sesion: ({}) {}".format(response.status, await response.text())
+        session_id = (await response.json())["_embedded"]["items"][0]["id"]
 
       # Fuerzo un reconnect de esa sesión
       confirm = { "confirm_disconnect": True }
-      response = requests.post(session.api_url+"/session/{}/disconnect".format(session_id), verify=False, headers=session.headers(), json=confirm)
-      if response.status_code != 200:
-          return "Error desconectando sesion: ({}) {}".format(response.status_code, response.text)
+      async with requests.post(session.api_url+"/session/{}/disconnect".format(session_id), headers=session.headers(), json=confirm) as response:
+        if response.status != 200:
+            return "Error desconectando sesion: ({}) {}".format(response.status, await response.text())
 
       # return None si no hay error
       return None
@@ -84,17 +102,9 @@ async def message_handler(msg):
       if not key in data:
         print("Recibido mensaje mal formado '{}': {}".format(subject, data))
         return
-    # Fake comnfig object. Solo soportamos client_credentials
-    cfg = {
-      "clearpass": {
-        "grant_type": "client_credentials",
-        "api_host": data["host"],
-        "client_id": data["user"],
-        "client_secret": data["pass"],
-      },
-    }
     print("Recibido mensaje bien formado: {}".format(data))
-    result = switchRole(cfg, data["nas_ip"], data["endpoint_mac"], data["threat"])
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as requests:
+      result = await onReceive(requests, data)
     if result is None:
       print("Cambio completado")
     else:
@@ -104,8 +114,6 @@ async def message_handler(msg):
 
 async def process(loop, url, topic):
   """Process messages coming from the topic"""
-  #def signal_handler(sig, frame):
-  #  pass
   nc = NATS()
   await nc.connect(url, loop=loop)
   print("Conexión establecida a url {}".format(url))
