@@ -17,6 +17,7 @@ import traceback
 import aiohttp
 
 from nats.aio.client import Client as NATS
+
 from aruba import Config, clearpass
 
 # Desactivo el log de certificado autofirmado.
@@ -33,7 +34,7 @@ Sample = {
   "threat": True,
 }
 
-async def onReceive(requests, data):
+async def onReceive(http, data):
   """Cambia los atributos de threat severity y status del endpoint, y le envia un CoA al nas_ip"""
 
   # Fake config object. Solo soportamos client_credentials
@@ -67,7 +68,7 @@ async def onReceive(requests, data):
             "Threat Status": "Resolved",
           },
         }
-      async with requests.patch(session.api_url + "/endpoint/mac-address/{}".format(endpoint_mac), headers=session.headers(), json=update) as response:
+      async with http.patch(session.api_url + "/endpoint/mac-address/{}".format(endpoint_mac), headers=session.headers(), json=update) as response:
         if response.status != 200:
             return "Error actualizando endpoint: ({}) {}".format(response.status, await response.text())
 
@@ -80,14 +81,14 @@ async def onReceive(requests, data):
         "sort": "-acctstarttime",
         "limit": 1,
       }
-      async with requests.get(session.api_url + "/session", headers=session.headers(), params=query) as response:
+      async with http.get(session.api_url + "/session", headers=session.headers(), params=query) as response:
         if response.status != 200:
             return "Error localizando sesion: ({}) {}".format(response.status, await response.text())
         session_id = (await response.json())["_embedded"]["items"][0]["id"]
 
       # Fuerzo un reconnect de esa sesión
       confirm = { "confirm_disconnect": True }
-      async with requests.post(session.api_url+"/session/{}/disconnect".format(session_id), headers=session.headers(), json=confirm) as response:
+      async with http.post(session.api_url+"/session/{}/disconnect".format(session_id), headers=session.headers(), json=confirm) as response:
         if response.status != 200:
             return "Error desconectando sesion: ({}) {}".format(response.status, await response.text())
 
@@ -103,8 +104,8 @@ async def message_handler(msg):
         print("Recibido mensaje mal formado '{}': {}".format(subject, data))
         return
     print("Recibido mensaje bien formado: {}".format(data))
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as requests:
-      result = await onReceive(requests, data)
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
+      result = await onReceive(http, data)
     if result is None:
       print("Cambio completado")
     else:
@@ -127,7 +128,7 @@ async def process(loop, url, topic):
       print("Eliminando suscripcion a topico {}".format(topic))
       await nc.unsubscribe(sid)
   finally:
-    print("errando conexion a URL {}".format(url))
+    print("Cerrando conexion a URL {}".format(url))
     await nc.close()
 
 if __name__ == "__main__":

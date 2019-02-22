@@ -1,0 +1,7 @@
+version: '3'
+services:
+  nats-coa:
+    build: .
+    container_name: nats-coa
+    restart: always
+    command: -m nats-coa.main "${NATS_URL}" "${NATS_TOPIC}"
