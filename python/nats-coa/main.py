@@ -98,7 +98,7 @@ async def onReceive(http, data):
       # return None si no hay error
       return None
 
-async def message_handler(msg):
+async def message_handler(http, msg):
   """Gestiona mensajes recibidos"""
   try:
     subject, data = msg.subject, json.loads(msg.data.decode())
@@ -107,8 +107,7 @@ async def message_handler(msg):
         print("Recibido mensaje mal formado '{}': {}".format(subject, data))
         return
     print("Recibido mensaje bien formado: {}".format(data))
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
-      result = await onReceive(http, data)
+    result = await onReceive(http, data)
     if result is None:
       print("Cambio completado")
     else:
@@ -116,13 +115,13 @@ async def message_handler(msg):
   except:
     print("Excepcion promesando mensaje: {}".format(traceback.format_exc()))
 
-async def process(loop, url, topic):
+async def process(loop, http, url, topic):
   """Process messages coming from the topic"""
   nc = NATS()
   await nc.connect(url, loop=loop)
   print("Conexión establecida a url {}".format(url))
   try:
-    sid = await nc.subscribe(topic, cb=message_handler)
+    sid = await nc.subscribe(topic, cb=lambda m: message_handler(http, m))
     print("Suscripción a topico {}: {}".format(topic, sid))
     try:
       while True:
@@ -143,5 +142,6 @@ if __name__ == "__main__":
     print("URL y topic no pueden estar vacios")
     sys.exit(-1)
   loop = asyncio.get_event_loop()
-  loop.run_until_complete(process(loop, args.url, args.topic))
+  async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
+    loop.run_until_complete(process(loop, http, args.url, args.topic))
   loop.close()
