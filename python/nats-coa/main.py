@@ -115,20 +115,24 @@ async def message_handler(http, msg):
   except:
     print("Excepcion promesando mensaje: {}".format(traceback.format_exc()))
 
-async def process(loop, http, url, topic):
+async def process(loop, url, topic):
   """Process messages coming from the topic"""
   nc = NATS()
   await nc.connect(url, loop=loop)
   print("Conexión establecida a url {}".format(url))
   try:
-    sid = await nc.subscribe(topic, cb=lambda m: message_handler(http, m))
-    print("Suscripción a topico {}: {}".format(topic, sid))
-    try:
-      while True:
-        await asyncio.sleep(1000, loop=loop)
-    finally:
-      print("Eliminando suscripcion a topico {}".format(topic))
-      await nc.unsubscribe(sid)
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
+      @asyncio.coroutine
+      def handler(http, msg):
+        return message_handler(http, msg)
+      sid = await nc.subscribe(topic, cb=handler)
+      print("Suscripción a topico {}: {}".format(topic, sid))
+      try:
+        while True:
+          await asyncio.sleep(1000, loop=loop)
+      finally:
+        print("Eliminando suscripcion a topico {}".format(topic))
+        await nc.unsubscribe(sid)
   finally:
     print("Cerrando conexion a URL {}".format(url))
     await nc.close()
@@ -142,6 +146,5 @@ if __name__ == "__main__":
     print("URL y topic no pueden estar vacios")
     sys.exit(-1)
   loop = asyncio.get_event_loop()
-  async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
-    loop.run_until_complete(process(loop, http, args.url, args.topic))
+  loop.run_until_complete(process(loop, args.url, args.topic))
   loop.close()

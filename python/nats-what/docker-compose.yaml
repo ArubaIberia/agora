@@ -1,0 +1,7 @@
+version: '3'
+services:
+  nats-what:
+    build: .
+    container_name: nats-what
+    restart: always
+    command: -m nats-what.main "${NATS_URL}" "${NATS_TOPIC}" "${CPPM_IP}" "${CPPM_USER}" "${CPPM_SECRET}"

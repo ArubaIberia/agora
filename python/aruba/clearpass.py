@@ -60,6 +60,9 @@ def password_auth(api_host, client_id, client_secret, username, password, verify
 
 @contextmanager
 def session(config, grant_type=None, api_host=None, client_id=None, client_secret=None, verify=True):
+    yield new_session(config, grant_type, api_host, client_id, client_secret, verify)
+
+def new_session(config, grant_type=None, api_host=None, client_id=None, client_secret=None, verify=True):
     """Obtiene un token para ClearPass. Si grant_type=="password", necesita un refresh_token en la config"""
     # Cargo de la config valores por defecto para todos los parámetros
     defaults = config.get("clearpass")
@@ -86,7 +89,7 @@ def session(config, grant_type=None, api_host=None, client_id=None, client_secre
         token = _refresh_auth(api_host, client_id, client_secret, refresh_token, verify=verify)
     else:
         raise KeyError("refresh_token")
-    yield Session(_api_url(api_host), token, headers={ "Authorization": "Bearer {}".format(token) })
+    return Session(_api_url(api_host), token, headers={ "Authorization": "Bearer {}".format(token) })
 
 
 if __name__ == "__main__":
