@@ -75,16 +75,19 @@ async def onReceive(http, data):
       # Encuentro la última sesión en el switch
       query = {
         "filter": json.dumps({
-          "nasipaddress": nas_ip,
           "callingstationid": endpoint_mac,
         }),
         "sort": "-acctstarttime",
         "limit": 1,
       }
+      session_id = ""
       async with http.get(session.api_url + "/session", headers=session.headers(), params=query) as response:
         if response.status != 200:
             return "Error localizando sesion: ({}) {}".format(response.status, await response.text())
-        session_id = (await response.json())["_embedded"]["items"][0]["id"]
+        for item in (await response.json())["_embedded"]["items"]:
+            if nas_ip in item["nasipaddress"]:
+                session_id = item["id"]
+                break
 
       # Fuerzo un reconnect de esa sesión
       confirm = { "confirm_disconnect": True }
