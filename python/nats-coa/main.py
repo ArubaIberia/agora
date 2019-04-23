@@ -123,7 +123,7 @@ async def process(loop, url, topic):
   try:
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
       @asyncio.coroutine
-      def handler(http, msg):
+      def handler(msg):
         return message_handler(http, msg)
       sid = await nc.subscribe(topic, cb=handler)
       print("Suscripción a topico {}: {}".format(topic, sid))
