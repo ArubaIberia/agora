@@ -49,7 +49,12 @@ async def onReceive(cppm, http, data):
     counter = 0
     message = ""
     sep = ""
+    macs = dict()
     for session, endpoint in zip(sessions, endpoints):
+      mac = session.get("mac_address", "")
+      if mac in macs:
+        continue
+      macs[mac] = True
       nasport = session.get("nasportid", None)
       ssid = session.get("ssid", None)
       if ssid.startswith("__wired"):
@@ -59,7 +64,7 @@ async def onReceive(cppm, http, data):
       if "amera" in category:
         family = "cámara i pe"
       ip = endpoint.get("ip", None)
-      message += sep + "Dispositivo tipo " + family + " en " + (("puerto " + nasport) if ssid is None else "ssid " + ssid) + " con dirección i pe " + ip
+      message += sep + "Dispositivo tipo " + family + ", en " + (("puerto numero " + nasport) if ssid is None else "ssid " + ssid) + ", con dirección i pe " + ip
       sep = ". "
     
     return message
