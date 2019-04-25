@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import traceback
 import aiohttp
+import time
 
 from nats.aio.client import Client as NATS
 
@@ -33,14 +34,20 @@ async def onReceive(cppm, http, data):
     "limit": 25,
   }
   endpoint_futures = list()
+  macs = dict()
   sessions = list()
   async with http.get(cppm.api_url + "/session", headers=cppm.headers(), params=query) as response:
     if response.status != 200:
       return "Error localizando sesion: ({}) {}".format(response.status, await response.text())
+    now = time.time()
     for item in (await response.json())["_embedded"]["items"]:
-      if item["acctstoptime"] is None and item["nasipaddress"].startswith("1.1.1."):
-        sessions.append(item)
-        endpoint_futures.append(http.get(cppm.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]), headers=cppm.headers()))
+      mac = item.get("mac_address", "")
+      if item["acctstoptime"] is None and item["nasipaddress"].startswith("1.1.1.") and (mac not in macs):
+        macs[mac] = True
+        starttime = int(item.get("acctstarttime", "0"))
+        if (now - starttime) < 28800:
+          sessions.append(item)
+          endpoint_futures.append(http.get(cppm.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]), headers=cppm.headers()))
       
     endpoints = list()
     for response in (await asyncio.gather(*endpoint_futures)):
@@ -49,12 +56,7 @@ async def onReceive(cppm, http, data):
     counter = 0
     message = ""
     sep = ""
-    macs = dict()
     for session, endpoint in zip(sessions, endpoints):
-      mac = session.get("mac_address", "")
-      if mac in macs:
-        continue
-      macs[mac] = True
       nasport = session.get("nasportid", None)
       ssid = session.get("ssid", None)
       if ssid.startswith("__wired"):
@@ -67,6 +69,8 @@ async def onReceive(cppm, http, data):
       message += sep + "Dispositivo tipo " + family + ", en " + (("puerto numero " + nasport) if ssid is None else "ssid " + ssid) + ", con dirección i pe " + ip
       sep = ". "
     
+    if message == "":
+      return "ningun dispositivo conectado"
     return message
 
 async def message_handler(cfg, http, nc, msg):
