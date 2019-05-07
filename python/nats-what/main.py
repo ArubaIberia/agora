@@ -60,7 +60,7 @@ async def onReceive(cppm, nas_ip, http, data):
     for session, endpoint in zip(sessions, endpoints):
       nasport = session.get("nasportid", None)
       ssid = session.get("ssid", None)
-      if ssid.startswith("__wired"):
+      if (ssid is not None) and (ssid.startswith("__wired")):
         ssid = None
       category = endpoint.get("device_category", None)
       family = endpoint.get("device_family", None)
