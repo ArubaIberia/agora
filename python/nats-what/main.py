@@ -25,7 +25,7 @@ from aruba import Config, clearpass
 import logging
 logging.captureWarnings(True)
 
-async def onReceive(cppm, http, data):
+async def onReceive(cppm, nas_ip, http, data):
   """Cambia los atributos de threat severity y status del endpoint, y le envia un CoA al nas_ip"""
 
   # Encuentro las últimas sesiones en APs instant
@@ -42,12 +42,13 @@ async def onReceive(cppm, http, data):
     now = time.time()
     for item in (await response.json())["_embedded"]["items"]:
       mac = item.get("mac_address", "")
-      if item["acctstoptime"] is None and item["nasipaddress"].startswith("1.1.1.") and (mac not in macs):
-        macs[mac] = True
-        starttime = int(item.get("acctstarttime", "0"))
-        if (now - starttime) < 28800:
-          sessions.append(item)
-          endpoint_futures.append(http.get(cppm.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]), headers=cppm.headers()))
+      if (item["acctstoptime"] is None) and (mac not in macs):
+        if (nas_ip is None) or any(item["nasipaddress"].startswith(ip) for ip in nas_ip):
+          macs[mac] = True
+          starttime = int(item.get("acctstarttime", "0"))
+          if (now - starttime) < 28800:
+            sessions.append(item)
+            endpoint_futures.append(http.get(cppm.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]), headers=cppm.headers()))
       
     endpoints = list()
     for response in (await asyncio.gather(*endpoint_futures)):
@@ -73,13 +74,13 @@ async def onReceive(cppm, http, data):
       return "ningun dispositivo conectado"
     return message
 
-async def message_handler(cfg, http, nc, msg):
+async def message_handler(cfg, nas_ip, http, nc, msg):
     """Gestiona mensajes recibidos"""
     result = "Se ha producido un error"
     try:
       data = json.loads(msg.data.decode())
       print("Recibido mensaje bien formado: {}".format(data))
-      result = await onReceive(cfg, http, data)
+      result = await onReceive(cfg, nas_ip, http, data)
       if result is None:
         result = "orden procesada"
     except:
@@ -88,7 +89,7 @@ async def message_handler(cfg, http, nc, msg):
       reply = json.dumps({ "fulfillmentText": result, "payload": { "google": { "expectUserResponse": False } } })
       await nc.publish(msg.reply, reply.encode('utf-8'))
 
-async def process(loop, cfg, url, topic):
+async def process(loop, cfg, nas_ip, url, topic):
   """Process messages coming from the topic"""
   nc = NATS()
   await nc.connect(url, loop=loop)
@@ -98,7 +99,7 @@ async def process(loop, cfg, url, topic):
       cppm = clearpass.new_session(cfg, verify=False)
       @asyncio.coroutine
       def handler(msg):
-        return message_handler(cppm, http, nc, msg)
+        return message_handler(cppm, nas_ip, http, nc, msg)
       sid = await nc.subscribe(topic, "workers", cb=handler)
       print("Suscripción a topico {}: {}".format(topic, sid))
       try:
@@ -120,6 +121,7 @@ if __name__ == "__main__":
   parser.add_argument("cppm", help="Dirección IP del servidor ClearPass")
   parser.add_argument("user", help="Nombre del usuario api")
   parser.add_argument("secret", help="Client_secret del usuario api")
+  parser.add_argument("nas_ip", nargs="*", help="IP del NAS (todo o parte)")
   args = parser.parse_args()
   if args.url == "" or args.topic == "" or args.cppm == "" or args.user == "" or args.secret == "":
     print("Ninguno de los parametros pueden estar vacios")
@@ -133,7 +135,9 @@ if __name__ == "__main__":
       "client_secret": args.secret,
     },
   }
+  if len(args.nas_ip) == 0:
+    args.nas_ip = None
   loop = asyncio.get_event_loop()
-  loop.run_until_complete(process(loop, cfg, args.url, args.topic))
+  loop.run_until_complete(process(loop, cfg, args.nas_ip, args.url, args.topic))
   loop.close()
 
