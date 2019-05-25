@@ -21,7 +21,7 @@ class Suscription(object):
         self.topic = topic
         self.verifySSL = verifySSL
 
-    async def _sink(loop, self, asyncQueue, asyncCallback):
+    async def _sink(self, loop, asyncQueue, asyncCallback):
         natsConn = NATS()
         await natsConn.connect(self.natsURL, loop=loop)
         try:
