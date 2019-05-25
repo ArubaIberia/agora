@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import traceback
 import asyncio
 import aiohttp
@@ -24,26 +25,33 @@ class Suscription(object):
     async def _sink(self, loop, asyncQueue, asyncCallback):
         natsConn = NATS()
         await natsConn.connect(self.natsURL, loop=loop)
+        logging.debug("Suscription - Connected to NATS server")
         try:
             async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=self.verifySSL)) as httpSession:
                 async def handler(msg):
+                    logging.debug("Suscription - Received message")
                     await self._task(natsConn, msg, httpSession, asyncCallback)
                 sid = await natsConn.subscribe(self.topic, "workers", cb=handler)
+                logging.debug("Suscription - subscribed to topic {}".format(self.topic))
                 try:
                     # Wait until something is pushed to the queue (cancellation signal)
                     await asyncQueue.get()
+                    logging.debug("Suscription - Finished suscription to {}".format(self.topic))
                 finally:
                     await natsConn.unsubscribe(sid)
         finally:
+            logging.debug("Suscription - Disconnecting from NATS server")
             await natsConn.close()
 
     # Asynchronous task to be run pn message arrival
     async def _task(self, natsConn, natsMsg, httpSession, asyncCallback):
         reply = ""
         try:
+            logging.debug("Suscription::task - Received message")
             reply = await asyncCallback(httpSession, natsMsg.data)
         except:
             reply = traceback.format_exc()
+            logging.error("Suscription::task - error {}".format(reply))
         if natsMsg.reply:
             if hasattr(reply, 'encode'):
                 reply = reply.encode('utf-8')
