@@ -49,11 +49,11 @@ async def onReceive(cppm, nas_ip, http, data):
           if (now - starttime) < 28800:
             sessions.append(item)
             endpoint_futures.append(http.get(cppm.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]), headers=cppm.headers()))
-      
+
     endpoints = list()
     for response in (await asyncio.gather(*endpoint_futures)):
       endpoints.append(await response.json())
-  
+
     counter = 0
     message = ""
     sep = ""
@@ -69,7 +69,7 @@ async def onReceive(cppm, nas_ip, http, data):
       ip = endpoint.get("ip", None)
       message += sep + "Dispositivo tipo " + family + ", en " + (("puerto numero " + nasport) if ssid is None else "ssid " + ssid) + ", con dirección i pe " + ip
       sep = ". "
-    
+
     if message == "":
       return "ningun dispositivo conectado"
     return message
@@ -96,20 +96,20 @@ async def process(loop, cfg, nas_ip, url, topic):
   print("Conexión establecida a url {}".format(url))
   try:
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
-      cppm = clearpass.new_session(cfg, verify=False)
-      @asyncio.coroutine
-      def handler(msg):
-        return message_handler(cppm, nas_ip, http, nc, msg)
-      sid = await nc.subscribe(topic, "workers", cb=handler)
-      print("Suscripción a topico {}: {}".format(topic, sid))
-      try:
-        while True:
-          await asyncio.sleep(7200, loop=loop)
-          # Refresh token
-          cppm = clearpass.new_session(cfg, verify=False)
-      finally:
-        print("Eliminando suscripcion a topico {}".format(topic))
-        await nc.unsubscribe(sid)
+      with clearpass.session(cfg, verify=False) as cppm:
+        @asyncio.coroutine
+        def handler(msg):
+          return message_handler(cppm, nas_ip, http, nc, msg)
+        sid = await nc.subscribe(topic, "workers", cb=handler)
+        print("Suscripción a topico {}: {}".format(topic, sid))
+        try:
+          while True:
+            await asyncio.sleep(7200, loop=loop)
+            # Refresh token. This is synchronous... small tradeoff
+            cppm.refresh()
+        finally:
+          print("Eliminando suscripcion a topico {}".format(topic))
+          await nc.unsubscribe(sid)
   finally:
     print("Cerrando conexion a URL {}".format(url))
     await nc.close()

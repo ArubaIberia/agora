@@ -38,16 +38,7 @@ def _client_auth(api_host, client_id, client_secret, verify=True):
     }, verify=verify)
 
 
-def _refresh_auth(api_host, client_id, client_secret, refresh_token, verify=True):
-    return _auth(api_host, "access_token", {
-        "grant_type": "refresh_token",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "refresh_token": refresh_token,
-    }, verify=verify)
-
-
-def password_auth(api_host, client_id, client_secret, username, password, verify=True):
+def _password_auth(api_host, client_id, client_secret, username, password, verify=True):
     """Obtiene un refresh_token para el tipo de autenticacion password"""
     return _auth(api_host, "refresh_token", {
         "grant_type": "password",
@@ -58,11 +49,17 @@ def password_auth(api_host, client_id, client_secret, username, password, verify
     }, verify)
 
 
-@contextmanager
-def session(config, grant_type=None, api_host=None, client_id=None, client_secret=None, verify=True):
-    yield new_session(config, grant_type, api_host, client_id, client_secret, verify)
+def _refresh_auth(api_host, client_id, client_secret, refresh_token, verify=True):
+    return _auth(api_host, "access_token", {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+    }, verify=verify)
 
-def new_session(config, grant_type=None, api_host=None, client_id=None, client_secret=None, verify=True):
+
+@contextmanager
+def session(config, grant_type=None, api_host=None, client_id=None, client_secret=None, username=None, password=None, verify=True):
     """Obtiene un token para ClearPass. Si grant_type=="password", necesita un refresh_token en la config"""
     # Cargo de la config valores por defecto para todos los parámetros
     defaults = config.get("clearpass")
@@ -72,6 +69,10 @@ def new_session(config, grant_type=None, api_host=None, client_id=None, client_s
         "client_id": client_id,
         "client_secret": client_secret,
     }, defaults)
+    # Si la autenticacion no es tipo client_credentials, el username es obligatorio
+    if (provided["grant_type"] != "client_credentials"):
+        username = username if username is not None else defaults["username"]
+        password = password if password is not None else defaults.get("password", None)
     # Saco las variables del array, por comodidad
     grant_type, api_host, client_id, client_secret, refresh_token = (
         provided["grant_type"],
@@ -80,25 +81,42 @@ def new_session(config, grant_type=None, api_host=None, client_id=None, client_s
         provided["client_secret"],
         defaults.get("refresh_token", None),
     )
-    # Lanzo la autenticacion que corresponda
-    if grant_type == "client_credentials":
+    def auth(mem=[refresh_token]):
+        "Autentica la sesion, almacena el refresh token más reciente"
         # Si el grant_type es client_credentials, autentico tal cual
-        token = _client_auth(api_host, client_id, client_secret, verify=verify)
-    elif refresh_token is not None:
-        # En otro caso, tiro de refresh token
-        token = _refresh_auth(api_host, client_id, client_secret, refresh_token, verify=verify)
-    else:
-        raise KeyError("refresh_token")
-    return Session(_api_url(api_host), token, headers={ "Authorization": "Bearer {}".format(token) })
+        if grant_type == "client_credentials":
+            return _client_auth(api_host, client_id, client_secret, verify=verify)
+        # Si tengo un refresh token, intento utilizarlo
+        refresh_token = mem[0]
+        if refresh_token is not None:
+            try:
+                return _refresh_auth(api_host, client_id, client_secret, refresh_token, verify=verify)
+            except RequestError:
+                pass
+        # Si no tengo refresh o no funciona, autentico con password
+        mem[0] = _password_auth(api_host, client_id, client_secret, username, password, verify=verify)
+        return _refresh_auth(api_host, client_id, client_secret, mem[0], verify=verify)
+    # Authenticate and create session
+    token = auth()
+    result = Session(_api_url(api_host), token, headers={ "Authorization": "Bearer {}".format(token) })
+    # Add refresh() closure to session
+    def refresh():
+        token = auth()
+        result.headers["Authorization"] = "Bearer {}".format(token)
+        result.secret = token
+    result.refresh = refresh
+    yield result
 
 
 if __name__ == "__main__":
 
     # Cargo el fichero de configuracion y actualizo valores por defecto
     defaults =  {
+        "grant_type": None,
         "api_host": None,
         "client_id": None,
-        "client_secret": None
+        "client_secret": None,
+        "username": None,
     }
     config = Config()
     defaults.update(config.get("clearpass"))
@@ -117,8 +135,9 @@ if __name__ == "__main__":
     if selection.lower() in ("s", "si", "sí", "y", "yes"):
         username = _ask_input("Escribe el nombre de usuario (username)")
         password = _ask_pass("Escribe el password de usuario")
-        token = password_auth(data["api_host"], data["client_id"], data["client_secret"], username, password, False)
+        token = _password_auth(data["api_host"], data["client_id"], data["client_secret"], username, password, False)
         data["grant_type"] = "password"
+        data["username"] = username
         data["refresh_token"] = token
     else:
         token = _client_auth(data["api_host"], data["client_id"], data["client_secret"], False)
