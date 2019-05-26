@@ -16,105 +16,111 @@ import asyncio
 import traceback
 import aiohttp
 import time
-
-from nats.aio.client import Client as NATS
-
-from aruba import Config, clearpass
-
-# Desactivo el log de certificado autofirmado.
 import logging
-logging.captureWarnings(True)
 
-async def onReceive(cppm, nas_ip, http, data):
-  """Cambia los atributos de threat severity y status del endpoint, y le envia un CoA al nas_ip"""
+from logging.handlers import RotatingFileHandler
+from aruba import clearpass, nats
 
-  # Encuentro las últimas sesiones en APs instant
-  query = {
-    "sort": "-acctstarttime",
-    "limit": 25,
-  }
-  endpoint_futures = list()
-  macs = dict()
-  sessions = list()
-  async with http.get(cppm.api_url + "/session", headers=cppm.headers(), params=query) as response:
-    if response.status != 200:
-      return "Error localizando sesion: ({}) {}".format(response.status, await response.text())
-    now = time.time()
-    for item in (await response.json())["_embedded"]["items"]:
-      mac = item.get("mac_address", "")
-      if (item["acctstoptime"] is None) and (mac not in macs):
-        if (nas_ip is None) or any(item["nasipaddress"].startswith(ip) for ip in nas_ip):
-          macs[mac] = True
-          starttime = int(item.get("acctstarttime", "0"))
-          if (now - starttime) < 28800:
-            sessions.append(item)
-            endpoint_futures.append(http.get(cppm.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]), headers=cppm.headers()))
 
-    endpoints = list()
-    for response in (await asyncio.gather(*endpoint_futures)):
-      endpoints.append(await response.json())
+# Obtiene la lista de sesiones vivas
+async def getSessions(cppmSession, httpSession, nas_ips):
+    cppmURL = cppmSession.api_url + "/session"
+    query = {
+        "sort": "-acctstarttime",
+        "limit": 25,
+    }
+    result = dict()
+    async with httpSession.get(cppmURL, headers=cppmSession.headers(), params=cppmSession.params(query)) as response:
+        if response.status != 200:
+            raise "Error localizando sesion: ({}) {}".format(response.status, await response.text())
+        logging.debug("getSessions - sesiones obtenidas: {}".format(await response.text()))
+        items = (await response.json())["_embedded"]["items"]
+        # Me quedo con la sesion mas reciente de cada MAC
+        now = time.time()
+        for item in items:
+            mac = item.get("mac_address", "")
+            ini = int(item.get("acctstarttime", "0"))
+            end = item.get("acctstoptime", None)
+            nas = item.get("nasipaddress", "")
+            if (end is None) and (now - ini < 28800) and (mac not in result) and coincide_nas(nas, nas_ips):
+                result[mac] = item
+    return list(result.values())
 
-    counter = 0
-    message = ""
-    sep = ""
-    for session, endpoint in zip(sessions, endpoints):
-      nasport = session.get("nasportid", None)
-      ssid = session.get("ssid", None)
-      if (ssid is not None) and (ssid.startswith("__wired")):
-        ssid = None
-      category = endpoint.get("device_category", None)
-      family = endpoint.get("device_family", None)
-      if "amera" in category:
-        family = "cámara i pe"
-      ip = endpoint.get("ip", None)
-      message += sep + "Dispositivo tipo " + family + ", en " + (("puerto numero " + nasport) if ssid is None else "ssid " + ssid) + ", con dirección i pe " + ip
-      sep = ". "
+# Comprueba si el NAS coincide con alguno de los prefijos dados
+def coincide_nas(nas_ip, prefijos):
+    return (prefijos is None) or any(nas_ip.startswith(p) for p in prefijos)
 
-    if message == "":
-      return "ningun dispositivo conectado"
-    return message
+# Endpoints
+async def getEndpoints(cppmSession, httpSession, sesiones):
+    logging.debug("getEndpoints - Resolviendo endpoints para sesiones {}".format(sesiones))
+    
+    # Funcion auxiliar para convertir una lista de promesas, en un array de valores.
+    async def gather(iterable):
+        return await asyncio.gather(*tuple(iterable))
 
-async def message_handler(cfg, nas_ip, http, nc, msg):
-    """Gestiona mensajes recibidos"""
-    result = "Se ha producido un error"
+    endpoints = await gather(
+        httpSession.get(cppmSession.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]),
+            headers=cppmSession.headers(),
+            params=cppmSession.params())
+        for item in sesiones)
+
+    for text in await gather(ep.text() for ep in endpoints):
+        logging.debug("getEndpoints - información de endpoint: {}".format(text))
+    
+    return await gather(ep.json() for ep in endpoints)
+
+# Combina información de sesión y endpoint
+def mergeData(sesiones, endpoints):
+    mensaje, sep = "", ""
+    for session, endpoint in zip(sesiones, endpoints):
+        nasport = session.get("nasportid", None)
+        ssid = session.get("ssid", None)
+        # La controladora usa SSIDs "__wired_xxx" cuando la conexión es cableada
+        if (ssid is not None) and (ssid.startswith("__wired")):
+            ssid = None
+        category = endpoint.get("device_category", None)
+        family = endpoint.get("device_family", None)
+        if "amera" in category:
+            family = "cámara i pe"
+        ip = endpoint.get("ip", None)
+        mensaje += (sep + "Dispositivo tipo " + family + ", en "
+            + (("puerto numero " + nasport) if ssid is None else "ssid " + ssid)
+            + ", con dirección i pe " + ip)
+        sep = ". "  
+
+    if mensaje == "":
+        mensaje = "ningún dispositivo conectado"
+    return mensaje
+
+# Gestiona las peticiones de Google
+def googleEnumerate(app, nas_ips):
+  async def handler(topic, msg):
+    mensaje = ""
     try:
-      data = json.loads(msg.data.decode())
-      print("Recibido mensaje bien formado: {}".format(data))
-      result = await onReceive(cfg, nas_ip, http, data)
-      if result is None:
-        result = "orden procesada"
+      # No se usa, pero ahí está...
+      logging.debug("Recibida peticion: {}".format(json.loads(msg.decode('utf-8'))))
+      # Obtenemos la información
+      sesiones = await getSessions(app.prodSession, app.httpSession, nas_ips)
+      endpoints = await getEndpoints(app.prodSession, app.httpSession, sesiones)
+      # Y generamos el mensaje
+      mensaje = mergeData(sesiones, endpoints)
     except:
-      print("Excepcion promesando mensaje: {}".format(traceback.format_exc()))
-    if msg.reply:
-      reply = json.dumps({ "fulfillmentText": result, "payload": { "google": { "expectUserResponse": False } } })
-      await nc.publish(msg.reply, reply.encode('utf-8'))
+      logging.error(traceback.format_exc())
+      mensaje = "Se ha producido un error"
+    return json.dumps({
+      "fulfillmentText": mensaje,
+      "payload": { "google": { "expectUserResponse": False } },
+    })
+  return handler
 
-async def process(loop, cfg, nas_ip, url, topic):
-  """Process messages coming from the topic"""
-  nc = NATS()
-  await nc.connect(url, loop=loop)
-  print("Conexión establecida a url {}".format(url))
-  try:
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as http:
-      with clearpass.session(cfg, verify=False) as cppm:
-        @asyncio.coroutine
-        def handler(msg):
-          return message_handler(cppm, nas_ip, http, nc, msg)
-        sid = await nc.subscribe(topic, "workers", cb=handler)
-        print("Suscripción a topico {}: {}".format(topic, sid))
-        try:
-          while True:
-            await asyncio.sleep(7200, loop=loop)
-            # Refresh token. This is synchronous... small tradeoff
-            cppm.refresh()
-        finally:
-          print("Eliminando suscripcion a topico {}".format(topic))
-          await nc.unsubscribe(sid)
-  finally:
-    print("Cerrando conexion a URL {}".format(url))
-    await nc.close()
 
 if __name__ == "__main__":
+
+  #fileHandler = RotatingFileHandler("nats-what.log", maxBytes=512*1024, backupCount=5)
+  fileHandler = logging.StreamHandler(sys.stdout)
+  logging.captureWarnings(True)
+  logging.basicConfig(level=logging.DEBUG, handlers=(fileHandler,))
+  
   parser = argparse.ArgumentParser()
   parser.add_argument("url", help="URL del servidor gnatsd al que conectar")
   parser.add_argument("topic", help="Nombre del topic al que suscribirse")
@@ -137,7 +143,11 @@ if __name__ == "__main__":
   }
   if len(args.nas_ip) == 0:
     args.nas_ip = None
-  loop = asyncio.get_event_loop()
-  loop.run_until_complete(process(loop, cfg, args.nas_ip, args.url, args.topic))
-  loop.close()
 
+  loop = asyncio.get_event_loop()
+  app = nats.App(args.url, (lambda: clearpass.session(cfg, verify=False)), verify=False)
+  async def bootstrap():
+    await app.start()
+    await app.subscribe(args.topic, googleEnumerate(app, args.nas_ip))
+  loop.run_until_complete(bootstrap())
+  app.forever()
