@@ -7,6 +7,8 @@ import asyncio
 import aiohttp
 
 from nats.aio.client import Client as NATS
+from contextlib import asyncontextmanager
+
 
 class Suscription(object):
 
@@ -16,57 +18,74 @@ class Suscription(object):
     See https://nats.io/documentation/
     """
 
-    def __init__(self, natsURL, topic, verifySSL=False):
-        """Suscribe to the given topic of the NATS server at natsURL"""
-        self.natsURL = natsURL
-        self.topic = topic
-        self.verifySSL = verifySSL
+    def __init__(self, natsConn, loop):
+        """Manage suscriptions to topics in the provided connection"""
+        self.natsConn = natsConn
+        self.loop = loop
 
-    async def _sink(self, loop, asyncQueue, asyncCallback):
-        natsConn = NATS()
-        await natsConn.connect(self.natsURL, loop=loop)
-        logging.debug("Suscription - Connected to NATS server")
+    async def _sink(self, topic, cancelQueue, asyncCallback):
+        async def handler(msg):
+            logging.debug("Suscription - Received message on {}".format(topic))
+            await self._onMessage(self.natsConn, topic, msg, asyncCallback)
         try:
-            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=self.verifySSL)) as httpSession:
-                async def handler(msg):
-                    logging.debug("Suscription - Received message")
-                    await self._task(natsConn, msg, httpSession, asyncCallback)
-                sid = await natsConn.subscribe(self.topic, "workers", cb=handler)
-                logging.debug("Suscription - subscribed to topic {}".format(self.topic))
-                try:
-                    # Wait until something is pushed to the queue (cancellation signal)
-                    await asyncQueue.get()
-                    logging.debug("Suscription - Finished suscription to {}".format(self.topic))
-                finally:
-                    await natsConn.unsubscribe(sid)
+            sid = await self.natsConn.subscribe(topic, "workers", cb=handler)
+            logging.debug("Suscription - subscribed to {}".format(topic))
+            try:
+                # Wait until something is pushed to the queue (cancellation signal)
+                await cancelQueue.get()
+                logging.debug("Suscription - Finished suscription to {}".format(topic))
+            finally:
+                await self.natsConn.unsubscribe(sid)
         finally:
-            logging.debug("Suscription - Disconnecting from NATS server")
-            await natsConn.close()
+            await cancelQueue.task_done()
 
-    # Asynchronous task to be run pn message arrival
-    async def _task(self, natsConn, natsMsg, httpSession, asyncCallback):
+    # Asynchronous task to be run on message arrival
+    async def _onMessage(self, natsConn, topic, natsMsg, asyncCallback):
         reply = ""
         try:
-            logging.debug("Suscription::task - Received message")
-            reply = await asyncCallback(httpSession, natsMsg.data)
+            logging.debug("Suscription::task - Received message on {}".format(topic))
+            reply = await asyncCallback(topic, natsMsg.data)
         except:
             reply = traceback.format_exc()
-            logging.error("Suscription::task - error {}".format(reply))
+            logging.error("Suscription::task - error on {}: {}".format(topic, reply))
         if natsMsg.reply:
             if hasattr(reply, 'encode'):
                 reply = reply.encode('utf-8')
             await natsConn.publish(natsMsg.reply, reply)
 
-    def go(self, loop, asyncCallback):
+    @asynccontextmanager
+    async def topic(self, topic, asyncCallback):
         """Process all messages in the topic.
-        Each message triggers a call to the asyncCallback func, asyncCallback(aiohttpClient, bytes)
+        Each message triggers a call to the asyncCallback func, asyncCallback(topic, msgBytes)
         This functions returns a cancellation closure, e.g.
         >>> cancel = new Suscription(url, topic, False)(loop, callback)
         >>> # ... do your stuff while messages are received
         >>> await cancel()
         """
-        queue = asyncio.Queue(1, loop=loop)
-        loop.create_task(self._sink(loop, queue, asyncCallback))
-        async def cancel():
-            await queue.put(False)
-        return cancel
+        queue = asyncio.Queue(1, loop=self.loop)
+        loop.create_task(self._sink(topic, queue, asyncCallback))
+        yield None
+        await queue.put(False)
+
+    @asynccontextmanager
+    async def refresh(self, syncRefreshFunc, timeout):
+        """Keeps calling the refresh function in the background, every 'timeout' seconds"""
+        queue = asyncio.Queue(1, loop=self.loop)
+        async def asyncRefresh():
+            while True:
+                try:
+                    asyncio.wait_for(queue.get(), timeout=timeout, loop=self.loop)
+                except TimeoutError:
+                    syncRefreshFunc()
+        loop.create_task(asyncRefresh())
+        yield None
+        await queue.put(False)
+
+
+@asynccontextmanager
+async def suscription(natsURL, loop):
+    natsConn = NATS()
+    await natsConn.connect(natsURL, loop=loop)
+    logging.debug("Suscription - Connected to NATS server")
+    yield Suscription(natsConn, loop)
+    natsConn.close()
