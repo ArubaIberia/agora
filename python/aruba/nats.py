@@ -97,7 +97,7 @@ class App():
     NATS topics and trigger actions on the session.
     """
 
-    def __init__(self, natsURL, contextCallback, verify=True):
+    def __init__(self, natsURL, contextCallback, verify=True, loop=None):
         """Build an app connected to the given NATS server.
         
         contextCallback must be a function that takes no arguments and returns a
@@ -109,12 +109,12 @@ class App():
         Does not work:
         >>> app = App(myURL, clearpass.session(config))
         """
-        self._loop = asyncio.get_event_loop()
         self._natsURL = natsURL
         self._context = contextCallback
         self._verify = verify
         self._stop = None
         self._topics = dict()
+        self.loop = loop if loop is not None else asyncio.get_event_loop()
         self.prodSession = None
         self.httpSession = None
         self.natsSession = None
@@ -127,7 +127,7 @@ class App():
             logging.debug("Iniciado contexto de aplicación")
             httpSession = await stack.enter_async_context(aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=self._verify)))
             logging.debug("Iniciado pool HTTP")
-            natsSession = await stack.enter_async_context(suscription(self._natsURL, self._loop))
+            natsSession = await stack.enter_async_context(suscription(self._natsURL, self.loop))
             logging.debug("Lanzada conexion a NATS URL")
             self.prodSession = prodSession
             self.httpSession = httpSession
@@ -174,4 +174,4 @@ class App():
             del self._topics[topic]
 
     def forever(self):
-        self._loop.run_forever()
+        self.loop.run_forever()
