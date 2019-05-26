@@ -172,3 +172,6 @@ class App():
         if closeFunc is not None:
             await closeFunc()
             del self._topics[topic]
+
+    def forever(self):
+        self._loop.run_forever()
