@@ -7,7 +7,7 @@ import asyncio
 import aiohttp
 
 from nats.aio.client import Client as NATS
-from contextlib import asyncontextmanager
+from contextlib import asynccontextmanager
 
 
 class Suscription(object):
@@ -27,17 +27,15 @@ class Suscription(object):
         async def handler(msg):
             logging.debug("Suscription - Received message on {}".format(topic))
             await self._onMessage(self.natsConn, topic, msg, asyncCallback)
+        sid = await self.natsConn.subscribe(topic, "workers", cb=handler)
         try:
-            sid = await self.natsConn.subscribe(topic, "workers", cb=handler)
             logging.debug("Suscription - subscribed to {}".format(topic))
-            try:
-                # Wait until something is pushed to the queue (cancellation signal)
-                await cancelQueue.get()
-                logging.debug("Suscription - Finished suscription to {}".format(topic))
-            finally:
-                await self.natsConn.unsubscribe(sid)
-        finally:
+            # Wait until something is pushed to the queue (cancellation signal)
+            await cancelQueue.get()
+            logging.debug("Suscription - Finished suscription to {}".format(topic))
             await cancelQueue.task_done()
+        finally:
+            await self.natsConn.unsubscribe(sid)
 
     # Asynchronous task to be run on message arrival
     async def _onMessage(self, natsConn, topic, natsMsg, asyncCallback):
@@ -63,7 +61,7 @@ class Suscription(object):
         >>> await cancel()
         """
         queue = asyncio.Queue(1, loop=self.loop)
-        loop.create_task(self._sink(topic, queue, asyncCallback))
+        self.loop.create_task(self._sink(topic, queue, asyncCallback))
         yield None
         await queue.put(False)
 
@@ -74,10 +72,10 @@ class Suscription(object):
         async def asyncRefresh():
             while True:
                 try:
-                    asyncio.wait_for(queue.get(), timeout=timeout, loop=self.loop)
+                    await asyncio.wait_for(queue.get(), timeout=timeout, loop=self.loop)
                 except TimeoutError:
                     syncRefreshFunc()
-        loop.create_task(asyncRefresh())
+        self.loop.create_task(asyncRefresh())
         yield None
         await queue.put(False)
 
