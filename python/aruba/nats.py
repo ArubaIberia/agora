@@ -113,6 +113,8 @@ class App():
         self._natsURL = natsURL
         self._context = contextCallback
         self._verify = verify
+        self._stop = None
+        self._topics = dict()
         self.prodSession = None
         self.httpSession = None
         self.natsSession = None
