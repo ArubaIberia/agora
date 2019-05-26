@@ -125,7 +125,7 @@ class App():
             logging.debug("Iniciado contexto de aplicación")
             httpSession = await stack.enter_async_context(aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=self._verify)))
             logging.debug("Iniciado pool HTTP")
-            natsSession = await stack.enter_async_context(suscription(self.natsURL, self.loop))
+            natsSession = await stack.enter_async_context(suscription(self._natsURL, self._loop))
             logging.debug("Lanzada conexion a NATS URL")
             self.prodSession = prodSession
             self.httpSession = httpSession
