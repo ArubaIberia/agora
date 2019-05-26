@@ -33,7 +33,7 @@ class Suscription(object):
             # Wait until something is pushed to the queue (cancellation signal)
             await cancelQueue.get()
             logging.debug("Suscription - Finished suscription to {}".format(topic))
-            await cancelQueue.task_done()
+            cancelQueue.task_done()
         finally:
             await self.natsConn.unsubscribe(sid)
 
