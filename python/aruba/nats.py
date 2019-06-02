@@ -6,8 +6,13 @@ import traceback
 import asyncio
 import aiohttp
 
-from contextlib import asynccontextmanager, AsyncExitStack
-from nats.aio.client import Client as NATS
+from concurrent.futures import TimeoutError
+from contextlib import AsyncExitStack
+from typing import Dict, Callable, Optional, Awaitable, ContextManager, AsyncContextManager
+from nats.aio.client import Client as NATS, Msg # type: ignore
+from aruba.common import Session
+
+AsyncCallback = Callable[[str, bytes], Awaitable[Optional[bytes]]]
 
 
 class Suscription(object):
@@ -18,13 +23,13 @@ class Suscription(object):
     See https://nats.io/documentation/
     """
 
-    def __init__(self, natsConn, loop):
+    def __init__(self, natsConn: NATS, loop: asyncio.AbstractEventLoop) -> None:
         """Manage suscriptions to topics in the provided connection"""
         self.natsConn = natsConn
         self.loop = loop
 
-    async def _sink(self, topic, cancelQueue, asyncCallback):
-        async def handler(msg):
+    async def _sink(self, topic: str, cancelQueue: asyncio.Queue, asyncCallback: AsyncCallback) -> None:
+        async def handler(msg: bytes):
             logging.debug("Suscription - Received message on {}".format(topic))
             await self._onMessage(self.natsConn, topic, msg, asyncCallback)
         sid = await self.natsConn.subscribe(topic, "workers", cb=handler)
@@ -38,21 +43,20 @@ class Suscription(object):
             await self.natsConn.unsubscribe(sid)
 
     # Asynchronous task to be run on message arrival
-    async def _onMessage(self, natsConn, topic, natsMsg, asyncCallback):
-        reply = ""
+    async def _onMessage(self, natsConn: NATS, topic: str, natsMsg: Msg, asyncCallback: AsyncCallback) -> None:
+        reply: Optional[bytes] = None
         try:
             logging.debug("Suscription::task - Received message on {}".format(topic))
             reply = await asyncCallback(topic, natsMsg.data)
         except:
-            reply = traceback.format_exc()
+            reply = traceback.format_exc().encode('utf-8')
             logging.error("Suscription::task - error on {}: {}".format(topic, reply))
         if natsMsg.reply:
-            if hasattr(reply, 'encode'):
-                reply = reply.encode('utf-8')
+            if reply is None:
+                reply = "".encode('utf-8')
             await natsConn.publish(natsMsg.reply, reply)
 
-    @asynccontextmanager
-    async def topic(self, topic, asyncCallback):
+    def topic(self, topic: str, asyncCallback: AsyncCallback) -> AsyncContextManager[None]:
         """Process all messages in the topic.
         Each message triggers a call to the asyncCallback func, asyncCallback(topic, msgBytes)
         This functions returns a cancellation closure, e.g.
@@ -60,36 +64,50 @@ class Suscription(object):
         >>> # ... do your stuff while messages are received
         >>> await cancel()
         """
-        queue = asyncio.Queue(1, loop=self.loop)
-        self.loop.create_task(self._sink(topic, queue, asyncCallback))
-        yield None
-        await queue.put(False)
+        queue: asyncio.Queue = asyncio.Queue(1, loop=self.loop)
+        suscr = self
+        class _topic(AsyncContextManager[None]):
+            async def __aenter__(self) -> None:
+                suscr.loop.create_task(suscr._sink(topic, queue, asyncCallback))
+            async def __aexit__(self, exc_type, exc, tb) -> None:
+                await queue.put(False)
+        return _topic()
 
-    @asynccontextmanager
-    async def refresh(self, syncRefreshFunc, timeout):
+    def refresh(self, syncRefreshFunc: Callable[[], None], timeout: float) -> AsyncContextManager[None]:
         """Keeps calling the refresh function in the background, every 'timeout' seconds"""
-        queue = asyncio.Queue(1, loop=self.loop)
-        async def asyncRefresh():
-            while True:
-                try:
-                    await asyncio.wait_for(queue.get(), timeout=timeout, loop=self.loop)
-                except TimeoutError:
-                    syncRefreshFunc()
-        self.loop.create_task(asyncRefresh())
-        yield None
-        await queue.put(False)
+        queue: asyncio.Queue = asyncio.Queue(1, loop=self.loop)
+        suscr = self
+        class _refresh(AsyncContextManager[None]):
+            async def refresh(self) -> None:
+                while True:
+                    try:
+                        await asyncio.wait_for(queue.get(), timeout=timeout, loop=suscr.loop)
+                    except TimeoutError:
+                        syncRefreshFunc()
+            async def __aenter__(self) -> None:
+                suscr.loop.create_task(self.refresh())
+            async def __aexit__(self, exc_type, exc, tb) -> None:
+                await queue.put(False)
+        return _refresh()
 
 
-@asynccontextmanager
-async def suscription(natsURL, loop):
-    natsConn = NATS()
-    await natsConn.connect(natsURL, loop=loop)
-    logging.debug("Suscription - Connected to NATS server")
-    yield Suscription(natsConn, loop)
-    natsConn.close()
+class suscription(AsyncContextManager[Suscription]):
+
+    def __init__(self, natsURL: str, loop: asyncio.AbstractEventLoop) -> None:
+        self.natsURL = natsURL
+        self.loop = loop
+        self.natsConn = NATS()
+
+    async def __aenter__(self) -> Suscription:
+        await self.natsConn.connect(self.natsURL, loop=self.loop)
+        logging.debug("Suscription - Connected to NATS server")
+        return Suscription(self.natsConn, self.loop)
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.natsConn.close()
 
 
-class App():
+class App(object):
 
     """Message-based Application.
 
@@ -97,9 +115,10 @@ class App():
     NATS topics and trigger actions on the session.
     """
 
-    def __init__(self, natsURL, contextCallback, verify=True, loop=None):
+    def __init__(self, natsURL: str, contextCallback: Callable[[], ContextManager],
+        verify: bool = True, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         """Build an app connected to the given NATS server.
-        
+
         contextCallback must be a function that takes no arguments and returns a
         contextmanager, e.g:
 
@@ -112,15 +131,15 @@ class App():
         self._natsURL = natsURL
         self._context = contextCallback
         self._verify = verify
-        self._stop = None
-        self._topics = dict()
+        self._stop: Optional[Callable[[], Awaitable[None]]] = None
+        self._topics: Dict[str, Callable[[], Awaitable]] = dict()
         self.loop = loop if loop is not None else asyncio.get_event_loop()
-        self.prodSession = None
-        self.httpSession = None
-        self.natsSession = None
+        self.prodSession: Optional[Session] = None
+        self.httpSession: Optional[aiohttp.ClientSession] = None
+        self.natsSession: Optional[Suscription] = None
 
-    async def start(self):
-        "Start the app. This is not reentrant, an only be started once."
+    async def start(self) -> None:
+        "Start the app. This is not reentrant, can only be started once."
         logging.debug("Iniciando proceso principal")
         async with AsyncExitStack() as stack:
             prodSession = stack.enter_context(self._context())
@@ -139,7 +158,7 @@ class App():
             self._stop = stack.pop_all().aclose
             self._topics = dict()
 
-    async def subscribe(self, topic, asyncCallback):
+    async def subscribe(self, topic: str, asyncCallback: AsyncCallback) -> None:
         """Subscribe a topic. asyncCallback will be called with topic name, and message.
 
         Caution: asyncCallback must be an asyncfunction, not a lambda. E.g. this doesn't work:
@@ -152,12 +171,14 @@ class App():
         >>>     return await doStuff()
         >>> app.subscribe("topic", myCallback)
         """
+        if self.natsSession is None:
+            raise ValueError("Must start before subscribe")
         async with AsyncExitStack() as stack:
             await stack.enter_async_context(self.natsSession.topic(topic, asyncCallback))
             logging.debug("Suscrito a tópico {}, esperando mensajes...".format(topic))
             self._topics[topic] = stack.pop_all().aclose
 
-    async def stop(self):
+    async def stop(self) -> None:
         "Stop the nat connection and all subscritions. Call with await"
         for closeFunc in self._topics.values():
             await closeFunc()
@@ -166,12 +187,12 @@ class App():
             await self._stop()
         self._stop = None
 
-    async def unsubscribe(self, topic):
+    async def unsubscribe(self, topic: str) -> None:
         "Unsubscribe from the topic. Call with await"
         closeFunc = self._topics.get(topic, None)
         if closeFunc is not None:
             await closeFunc()
             del self._topics[topic]
 
-    def forever(self):
+    def forever(self) -> None:
         self.loop.run_forever()

@@ -18,21 +18,21 @@ import aiohttp
 import time
 import logging
 
-from logging.handlers import RotatingFileHandler
-from aruba import clearpass, nats
+from typing import Sequence, Tuple, Any, Dict, cast
+from aruba import clearpass, nats, common
 
 
 # Obtiene la lista de sesiones vivas
-async def getSessions(cppmSession, httpSession, nas_ips):
+async def getSessions(cppmSession: common.Session, httpSession: aiohttp.ClientSession, nas_ips: Sequence[str]) -> Tuple[Any]:
     cppmURL = cppmSession.api_url + "/session"
     query = {
         "sort": "-acctstarttime",
         "limit": 25,
     }
-    result = dict()
+    result: Dict[str, Any] = dict()
     async with httpSession.get(cppmURL, headers=cppmSession.headers(), params=cppmSession.params(query)) as response:
         if response.status != 200:
-            raise "Error localizando sesion: ({}) {}".format(response.status, await response.text())
+            raise ValueError("Error localizando sesion: ({}) {}".format(response.status, await response.text()))
         logging.debug("getSessions - sesiones obtenidas: {}".format(await response.text()))
         items = (await response.json())["_embedded"]["items"]
         # Me quedo con la sesion mas reciente de cada MAC
@@ -44,33 +44,33 @@ async def getSessions(cppmSession, httpSession, nas_ips):
             nas = item.get("nasipaddress", "")
             if (end is None) and (now - ini < 28800) and (mac not in result) and coincide_nas(nas, nas_ips):
                 result[mac] = item
-    return list(result.values())
+    return cast(Tuple[Any], tuple(result.values()))
 
 # Comprueba si el NAS coincide con alguno de los prefijos dados
-def coincide_nas(nas_ip, prefijos):
+def coincide_nas(nas_ip: str, prefijos: Sequence[str]) -> bool:
     return (prefijos is None) or any(nas_ip.startswith(p) for p in prefijos)
 
 # Endpoints
-async def getEndpoints(cppmSession, httpSession, sesiones):
-    logging.debug("getEndpoints - Resolviendo endpoints para sesiones {}".format(sesiones))
-    
+async def getEndpoints(cppmSession: common.Session, httpSession: aiohttp.ClientSession, macs: Sequence[str]) -> Tuple[Any]:
+    logging.debug("getEndpoints - Resolviendo endpoints para macs {}".format(macs))
+
     # Funcion auxiliar para convertir una lista de promesas, en un array de valores.
     async def gather(iterable):
         return await asyncio.gather(*tuple(iterable))
 
     endpoints = await gather(
-        httpSession.get(cppmSession.api_url + "/insight/endpoint/mac/{}".format(item["mac_address"]),
+        httpSession.get(cppmSession.api_url + "/insight/endpoint/mac/{}".format(mac),
             headers=cppmSession.headers(),
             params=cppmSession.params())
-        for item in sesiones)
+        for mac in macs)
 
     for text in await gather(ep.text() for ep in endpoints):
         logging.debug("getEndpoints - información de endpoint: {}".format(text))
-    
+
     return await gather(ep.json() for ep in endpoints)
 
 # Combina información de sesión y endpoint
-def mergeData(sesiones, endpoints):
+def mergeData(sesiones: Sequence[Any], endpoints: Sequence[Any]) -> str:
     mensaje, sep = "", ""
     for session, endpoint in zip(sesiones, endpoints):
         nasport = session.get("nasportid", None)
@@ -86,31 +86,35 @@ def mergeData(sesiones, endpoints):
         mensaje += (sep + "Dispositivo tipo " + family + ", en "
             + (("puerto numero " + nasport) if ssid is None else "ssid " + ssid)
             + ", con dirección i pe " + ip)
-        sep = ". "  
+        sep = ". "
 
     if mensaje == "":
         mensaje = "ningún dispositivo conectado"
     return mensaje
 
 # Gestiona las peticiones de Google
-def googleEnumerate(app, nas_ips):
-  async def handler(topic, msg):
+def googleEnumerate(app: nats.App, nas_ips: Sequence[str]) -> nats.AsyncCallback:
+  async def handler(topic: str, msg: bytes) -> bytes:
     mensaje = ""
     try:
       # No se usa, pero ahí está...
       logging.debug("Recibida peticion: {}".format(json.loads(msg.decode('utf-8'))))
       # Obtenemos la información
+      if app.prodSession is None or app.httpSession is None:
+        raise ValueError("CPPM and HTTP Sessions must not be None")
       sesiones = await getSessions(app.prodSession, app.httpSession, nas_ips)
-      endpoints = await getEndpoints(app.prodSession, app.httpSession, sesiones)
+      macs = tuple(s["mac_address"] for s in sesiones)
+      endpoints = await getEndpoints(app.prodSession, app.httpSession, macs)
       # Y generamos el mensaje
       mensaje = mergeData(sesiones, endpoints)
+      logging.debug(f"Mensaje generado: {mensaje}")
     except:
       logging.error(traceback.format_exc())
       mensaje = "Se ha producido un error"
     return json.dumps({
       "fulfillmentText": mensaje,
       "payload": { "google": { "expectUserResponse": False } },
-    })
+    }).encode('utf-8')
   return handler
 
 
@@ -120,7 +124,7 @@ if __name__ == "__main__":
   fileHandler = logging.StreamHandler(sys.stdout)
   logging.captureWarnings(True)
   logging.basicConfig(level=logging.DEBUG, handlers=(fileHandler,))
-  
+
   parser = argparse.ArgumentParser()
   parser.add_argument("url", help="URL del servidor gnatsd al que conectar")
   parser.add_argument("topic", help="Nombre del topic al que suscribirse")

@@ -16,7 +16,8 @@ import asyncio
 import traceback
 import aiohttp
 
-from nats.aio.client import Client as NATS
+from nats.aio.client import Client as NATS, Msg # type: ignore
+from typing import Mapping, Optional, Any
 
 from aruba import Config, clearpass
 
@@ -34,7 +35,7 @@ Sample = {
   "threat": True,
 }
 
-async def onReceive(http, data):
+async def onReceive(http: aiohttp.ClientSession, data: Mapping[str, Any]) -> Optional[str]:
   """Cambia los atributos de threat severity y status del endpoint, y le envia un CoA al nas_ip"""
 
   # Fake config object. Solo soportamos client_credentials
@@ -98,7 +99,7 @@ async def onReceive(http, data):
       # return None si no hay error
       return None
 
-async def message_handler(http, msg):
+async def message_handler(http: aiohttp.ClientSession, msg: Msg) -> None:
   """Gestiona mensajes recibidos"""
   try:
     subject, data = msg.subject, json.loads(msg.data.decode())
@@ -115,7 +116,7 @@ async def message_handler(http, msg):
   except:
     print("Excepcion promesando mensaje: {}".format(traceback.format_exc()))
 
-async def process(loop, url, topic):
+async def process(loop: asyncio.AbstractEventLoop, url: str, topic: str) -> None:
   """Process messages coming from the topic"""
   nc = NATS()
   await nc.connect(url, loop=loop)
