@@ -5,19 +5,18 @@ La libreria **aruba** ofrece funciones para simplificar el acceso a las APIs de 
 - *aruba.clearpass*
 - *aruba.switch*
 - *aruba.controller*
-- Vendrán mas... (Central, Meridian, Instant...)
 
 Para usar cada módulo, en primer lugar es necesario configurarlo con unas **credenciales**. Las credenciales son las que luego se usan para acceder a los dispositivos que gestiona el módulo (switches, controllers, etc).
 
 La configuración de credenciales se hace a través de un pequeño asistente de línea de comandos que contiene cada módulo. Para lanzar el asistente de un módulo, se ejecuta con:
 
-```
+```bash
 python -m aruba.<modulo>
 ```
 
 Por ejemplo:
 
-```
+```bash
 python -m aruba.clearpass
 python -m aruba.controller
 python -m aruba.switch

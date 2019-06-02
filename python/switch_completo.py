@@ -19,7 +19,7 @@ import logging
 logging.captureWarnings(True)
 
 # Primer paso: construir la URL de la API a partir de la IP del switch
-url_api = "https://{ip}/rest/v3".format(ip=host_add)
+url_api = "https://{ip}/rest/v4".format(ip=host_add)
 
 # Segundo paso: Autenticar al usuario
 response = requests.post(url_api + "/login-sessions", verify=False, json={
