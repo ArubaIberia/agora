@@ -9,7 +9,7 @@ name = "pypi"
 
 pyyaml = "*"
 cryptography = "*"
-"jinja2" = "*"
+jinja2 = "*"
 
 
 [dev-packages]
